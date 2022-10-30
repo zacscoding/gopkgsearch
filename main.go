@@ -41,11 +41,14 @@ func main() {
 
 		importedCmd.UintVar(&opts.Number, "n", 10, "Number of retrieved repositories.")
 		importedCmd.StringVar(&opts.Package, "p", "", "Golang Package. e.g) net/http, github.com/gin-gonic/gin")
+		importedCmd.StringVar(&opts.Stars, "stars", "", "Stars filter. e.g) '=10', '>10', '>=10'")
+		importedCmd.StringVar(&opts.Output, "output", "table", "Output format. available: ['table', 'json', 'yaml', 'markdown'")
+		importedCmd.StringVar(&opts.OutputPath, "o", "", "Output path. default: std")
 
 		if err := importedCmd.Parse(os.Args[2:]); err != nil {
 			log.Fatal(err)
 		}
-		if err := opts.Validate(); err != nil {
+		if err := opts.Init(); err != nil {
 			log.Fatal(err)
 		}
 

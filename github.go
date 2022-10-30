@@ -12,10 +12,34 @@ import (
 )
 
 type GithubRepository struct {
-	Owner           string
-	Name            string
-	FullName        string
-	StargazersCount int
+	Owner           string `json:"owner" yaml:"owner"`
+	Name            string `json:"name" yaml:"name"`
+	FullName        string `json:"fullName" yaml:"fullName"`
+	URL             string `json:"url" yaml:"url"`
+	StargazersCount int    `json:"stargazersCount" yaml:"stargazersCount"`
+}
+
+func NewGithubRepository(owner, name string) *GithubRepository {
+	return &GithubRepository{
+		Owner:           owner,
+		Name:            name,
+		FullName:        fmt.Sprintf("%s/%s", owner, name),
+		URL:             fmt.Sprintf("https://github.com/%s/%s", owner, name),
+		StargazersCount: 0,
+	}
+}
+
+type GithubRepositoryFilter func(r *GithubRepository) bool
+
+type GithubRepositoryFilters []GithubRepositoryFilter
+
+func (filters GithubRepositoryFilters) Filter(repository *GithubRepository) bool {
+	for _, filter := range filters {
+		if !filter(repository) {
+			return false
+		}
+	}
+	return true
 }
 
 func CountStargazers(ctx context.Context, repo *GithubRepository) (int, error) {

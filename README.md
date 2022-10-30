@@ -5,7 +5,7 @@
 $ https://github.com/zacscoding/gopkgsearch.git
 $ cd gopkgsearch
 $ make build
-$ ./build/bin/gopkgsearch imported -n 10 -p github.com/aws/aws-sdk-go/service/cloudhsmv2
+$ ./build/bin/gopkgsearch imported -n 10 -p github.com/aws/aws-sdk-go/service/cloudhsmv2 -stars '>=1' -output table
 2022/10/30 03:19:23 Search imported github repositories. limit: 10, package: github.com/aws/aws-sdk-go/service/cloudhsmv2
 2022/10/30 03:19:23 > imported repositories: 159
 +----+---------------------+-----------------------------------+------------+---------------------------------------------------------------+
