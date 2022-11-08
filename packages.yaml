@@ -1,0 +1,48 @@
+- category: Web Frameworks
+  packages:
+    - name: gin
+      url: github.com/gin-gonic/gin
+      options:
+        limit: 30
+        stars: '>=10'
+    - name: beego
+      url: github.com/astaxie/beego
+      options:
+        limit: 30
+        stars: '>=10'
+    - name: echo
+      url: github.com/labstack/echo/v4
+      options:
+        limit: 30
+        stars: '>=10'
+    - name: fiber
+      url: github.com/gofiber/fiber/v2
+      options:
+        limit: 30
+        stars: '>=0'
+    - name: fiber
+      url: github.com/gofiber/fiber/v2
+      options:
+        limit: 30
+        stars: '>=0'
+
+- category: ORM
+  packages:
+    - name: gorm
+      url: gorm.io/gorm
+      options:
+        limit: 30
+        stars: '>=0'
+    - name: ent
+      url: entgo.io/ent
+      options:
+        limit: 30
+        stars: '>=0'
+
+- category: Cache
+  packages:
+    - name: go-redis(v8)
+      url: github.com/go-redis/redis/v8
+      options:
+        limit: 30
+        stars: '>=0'

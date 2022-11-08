@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -42,8 +44,102 @@ func (filters GithubRepositoryFilters) Filter(repository *GithubRepository) bool
 	return true
 }
 
-func CountStargazers(ctx context.Context, repo *GithubRepository) (int, error) {
-	endpoint := fmt.Sprintf("https://github.com/%s", repo.FullName)
+var numericRegex = regexp.MustCompile(`[^0-9 ]+`)
+
+func parseStarsFilter(opt string) (GithubRepositoryFilter, error) {
+	if opt == "" {
+		return nil, nil
+	}
+
+	var op, val []rune
+	for i, r := range opt {
+		if r >= '0' && r <= '9' {
+			val = append(val, r)
+			continue
+		}
+		if strings.ContainsRune("=><", r) {
+			op = append(op, r)
+			continue
+		}
+		return nil, fmt.Errorf("'%c' invalid character at %d", r, i)
+	}
+	v, _ := strconv.Atoi(string(val))
+
+	switch string(op) {
+	case "", "=":
+		return func(r *GithubRepository) bool {
+			return r.StargazersCount == v
+		}, nil
+	case ">":
+		return func(r *GithubRepository) bool {
+			return r.StargazersCount > v
+		}, nil
+	case ">=":
+		return func(r *GithubRepository) bool {
+			return r.StargazersCount >= v
+		}, nil
+	case "<":
+		return func(r *GithubRepository) bool {
+			return r.StargazersCount < v
+		}, nil
+	case "<=":
+		return func(r *GithubRepository) bool {
+			return r.StargazersCount <= v
+		}, nil
+	}
+	return nil, fmt.Errorf("unreachable code. option: %s, op: %s, val: %d", opt, string(op), val)
+}
+
+var countCache = make(map[string]int)
+
+func CountStargazers(ctx context.Context, accessToken, owner, repo string) (int, error) {
+	fullName := fmt.Sprintf("%s/%s", owner, repo)
+	if count, ok := countCache[fullName]; ok {
+		return count, nil
+	}
+
+	var (
+		count int
+		err   error
+	)
+	if accessToken != "" {
+		count, err = countStargazersByGithubAPI(ctx, accessToken, owner, repo)
+	} else {
+		count, err = countStargazersByGithubPublic(ctx, owner, repo)
+	}
+	if err != nil {
+		return 0, err
+	}
+	countCache[fullName] = count
+	return count, nil
+}
+
+func countStargazersByGithubAPI(ctx context.Context, accessToken, owner, repo string) (int, error) {
+	endpoint := fmt.Sprintf("https://api.github.com/repos/%s/%s", owner, repo)
+	resp, err := DoHttpCallWithRetry(ctx, 3, func(ctx context.Context) (*http.Response, error) {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Authorization", "Bearer "+accessToken)
+		return http.DefaultClient.Do(req)
+	})
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+
+	r := struct {
+		StargazersCount int `json:"stargazers_count"`
+	}{}
+	if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
+		return 0, err
+	}
+	return r.StargazersCount, nil
+}
+
+func countStargazersByGithubPublic(ctx context.Context, owner, repo string) (int, error) {
+	endpoint := fmt.Sprintf("https://github.com/%s/%s", owner, repo)
 	resp, err := DoHttpCallWithRetry(ctx, 3, func(ctx context.Context) (*http.Response, error) {
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 		if err != nil {

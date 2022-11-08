@@ -9,9 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -21,14 +19,13 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-var numericRegex = regexp.MustCompile(`[^0-9 ]+`)
-
 type importedOpts struct {
-	Number     uint
-	Package    string
-	Stars      string
-	Output     string
-	OutputPath string
+	Number            uint
+	Package           string
+	Stars             string
+	Output            string
+	OutputPath        string
+	GithubAccessToken string
 
 	StartTime time.Time
 	Elapsed   time.Duration
@@ -68,7 +65,7 @@ func RunImportedCmd(ctx context.Context, opts *importedOpts) error {
 		if i%100 == 0 {
 			log.Printf("processed repositories: %d", i)
 		}
-		count, err := CountStargazers(ctx, repo)
+		count, err := CountStargazers(ctx, opts.GithubAccessToken, repo.Owner, repo.Name)
 		if err != nil {
 			if errors.Is(err, ctx.Err()) {
 				return err
@@ -170,80 +167,41 @@ func PrintGithubRepositories(ctx context.Context, opts *importedOpts, repositori
 	s := struct {
 		Package      string              `json:"package" yaml:"package"`
 		Elapsed      time.Duration       `json:"elapsed" yaml:"elapsed"`
+		UpdatedAt    time.Time           `json:"updatedAt" yaml:"updatedAt"`
 		Repositories []*GithubRepository `json:"repositories" yaml:"repositories"`
 	}{
 		Package:      opts.Package,
 		Elapsed:      opts.Elapsed,
+		UpdatedAt:    time.Now(),
 		Repositories: repositories,
 	}
 
 	switch opts.Output {
 	case "table", "markdown":
+		writer.Write([]byte(fmt.Sprintf("- Packages: %s\n", s.Package)))
+		writer.Write([]byte(fmt.Sprintf("- UpdatedAt: %s\n", s.UpdatedAt.UTC().Format("2006-01-02 15:04:05"))))
+		writer.Write([]byte(fmt.Sprintf("- Elapsed: %s\n", s.Elapsed)))
+		writer.Write([]byte("\n"))
+
 		tb := table.NewWriter()
 		tb.AppendHeader(table.Row{"No", "User", "Repository", "Stargazers", "URL"})
-		tb.AppendRow(table.Row{"Package", opts.Package, "Elapsed", opts.Elapsed}) // FIXME: how to use multiple headers? :(
-		tb.AppendSeparator()
 		for i, repo := range repositories {
 			tb.AppendRow(table.Row{
 				i + 1, repo.Owner, repo.Name, repo.StargazersCount, fmt.Sprintf("https://github.com/%s", repo.FullName),
 			})
 		}
-		tb.AppendSeparator()
+		var render string
 		if opts.Output == "table" {
-			_, err := writer.Write([]byte(tb.Render()))
-			return err
+			render = tb.Render()
 		} else {
-			_, err := writer.Write([]byte(tb.RenderMarkdown()))
-			return err
+			render = tb.RenderMarkdown()
 		}
+		_, err := writer.Write([]byte(render))
+		return err
 	case "json":
 		return json.NewEncoder(writer).Encode(&s)
 	case "yaml":
 		return yaml.NewEncoder(writer).Encode(&s)
 	}
 	return nil
-}
-
-func parseStarsFilter(opt string) (GithubRepositoryFilter, error) {
-	if opt == "" {
-		return nil, nil
-	}
-
-	var op, val []rune
-	for i, r := range opt {
-		if r >= '0' && r <= '9' {
-			val = append(val, r)
-			continue
-		}
-		if strings.ContainsRune("=><", r) {
-			op = append(op, r)
-			continue
-		}
-		return nil, fmt.Errorf("'%c' invalid character at %d", r, i)
-	}
-	v, _ := strconv.Atoi(string(val))
-
-	switch string(op) {
-	case "", "=":
-		return func(r *GithubRepository) bool {
-			return r.StargazersCount == v
-		}, nil
-	case ">":
-		return func(r *GithubRepository) bool {
-			return r.StargazersCount > v
-		}, nil
-	case ">=":
-		return func(r *GithubRepository) bool {
-			return r.StargazersCount >= v
-		}, nil
-	case "<":
-		return func(r *GithubRepository) bool {
-			return r.StargazersCount < v
-		}, nil
-	case "<=":
-		return func(r *GithubRepository) bool {
-			return r.StargazersCount <= v
-		}, nil
-	}
-	return nil, fmt.Errorf("unreachable code. option: %s, op: %s, val: %d", opt, string(op), val)
 }

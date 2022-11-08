@@ -22,8 +22,9 @@ var (
 func main() {
 	importedCmd := flag.NewFlagSet("imported", flag.ExitOnError)
 	versionCmd := flag.NewFlagSet("version", flag.ExitOnError)
+	readmeGenCmd := flag.NewFlagSet("readmegen", flag.ExitOnError)
 	commands := strings.Join([]string{
-		importedCmd.Name(), versionCmd.Name(),
+		importedCmd.Name(), versionCmd.Name(), readmeGenCmd.Name(),
 	}, " | ")
 
 	if len(os.Args) < 2 {
@@ -48,6 +49,8 @@ func main() {
 		if err := importedCmd.Parse(os.Args[2:]); err != nil {
 			log.Fatal(err)
 		}
+		opts.GithubAccessToken = os.Getenv("GITHUB_ACCESS_TOKEN")
+
 		if err := opts.Init(); err != nil {
 			log.Fatal(err)
 		}
@@ -55,9 +58,17 @@ func main() {
 		running.Add(1)
 		go func() {
 			defer running.Done()
-			log.Printf("Search imported github repositories. limit: %d, package: %s", opts.Number, opts.Package)
+			useGithubAPI := opts.GithubAccessToken != ""
+			log.Printf("Search imported github repositories. limit: %d, package: %s, enable github api: %v", opts.Number, opts.Package, useGithubAPI)
 			done <- RunImportedCmd(ctx, &opts)
 		}()
+	case readmeGenCmd.Name():
+		running.Add(1)
+		go func() {
+			defer running.Done()
+			done <- RunReadmeGen(ctx)
+		}()
+
 	case versionCmd.Name():
 		fmt.Println("gopkgsearch version", getVersionInfo())
 		close(done)
